@@ -1,0 +1,19 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install gjs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gjs libglib2.0-bin
+      - name: Compile schemas
+        run: make schemas
+      - name: Run unit tests
+        run: make test
