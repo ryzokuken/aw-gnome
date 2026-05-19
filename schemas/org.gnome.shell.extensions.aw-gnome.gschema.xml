@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.aw-gnome"
+          path="/org/gnome/shell/extensions/aw-gnome/">
+    <key name="paused" type="b">
+      <default>false</default>
+      <summary>Pause tracking</summary>
+      <description>When true, the extension stops sending heartbeats to aw-server. Signal subscriptions remain active so resuming is instantaneous.</description>
+    </key>
+  </schema>
+</schemalist>

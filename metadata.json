@@ -1,0 +1,8 @@
+{
+  "uuid": "aw-gnome@ryzokuken.dev",
+  "name": "ActivityWatch for GNOME",
+  "description": "Native GNOME indicator and watchers for ActivityWatch. Tracks focused window and AFK state on Wayland, posts heartbeats to aw-server.",
+  "shell-version": ["45", "46", "47", "48", "49", "50"],
+  "url": "https://github.com/ryzokuken/aw-gnome",
+  "settings-schema": "org.gnome.shell.extensions.aw-gnome"
+}
