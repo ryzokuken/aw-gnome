@@ -17,8 +17,8 @@ export default class AwGnomeExtension extends Extension {
         this._hostname = GLib.get_host_name();
         this._client = new HeartbeatClient(SERVER_URL);
 
-        const windowBucket = `aw-watcher-window_${this._hostname}`;
-        const afkBucket = `aw-watcher-afk_${this._hostname}`;
+        const windowBucket = `aw-watcher-gnome-window_${this._hostname}`;
+        const afkBucket = `aw-watcher-gnome-afk_${this._hostname}`;
 
         this._client.createBucket(windowBucket, 'currentwindow', this._hostname)
             .catch(e => console.error(`aw-gnome: createBucket(window) failed: ${e.message}`));
