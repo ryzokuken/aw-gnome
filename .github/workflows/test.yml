@@ -12,7 +12,7 @@ jobs:
       - name: Install gjs
         run: |
           sudo apt-get update
-          sudo apt-get install -y gjs libglib2.0-bin
+          sudo apt-get install -y gjs libglib2.0-bin gir1.2-soup-3.0
       - name: Compile schemas
         run: make schemas
       - name: Run unit tests
