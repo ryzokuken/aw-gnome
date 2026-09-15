@@ -1,0 +1,5 @@
+minimumReleaseAge: 1440
+ignoreScripts: true
+overrides:
+  # eslint-config-gnome pins jsdoc 48, which predates eslint 10 support.
+  eslint-plugin-jsdoc: 64.3.10

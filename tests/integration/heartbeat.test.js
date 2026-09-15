@@ -6,7 +6,7 @@ import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 import Soup from 'gi://Soup';
 import System from 'system';
-import { HeartbeatClient } from '../../lib/heartbeatClient.js';
+import {HeartbeatClient} from '../../lib/heartbeatClient.js';
 
 const TEST_PORT = 5666;
 const TEST_URL = `http://localhost:${TEST_PORT}`;
@@ -32,11 +32,14 @@ async function waitForServer(timeoutMs = 5000) {
     while ((GLib.get_monotonic_time() - start) / 1000 < timeoutMs) {
         try {
             const msg = Soup.Message.new('GET', `${TEST_URL}/api/0/info`);
+            // eslint-disable-next-line no-await-in-loop -- sequential polling is the intent
             await session.send_and_read_async(msg, GLib.PRIORITY_DEFAULT, null);
-            if (msg.get_status() === 200) return;
+            if (msg.get_status() === 200)
+                return;
         } catch {
             // keep waiting
         }
+        // eslint-disable-next-line no-await-in-loop -- sequential polling is the intent
         await sleep(100);
     }
     throw new Error(`aw-server-rust did not start within ${timeoutMs}ms`);
@@ -67,14 +70,15 @@ async function main() {
         const bucket = 'aw-watcher-test_ci';
         await client.createBucket(bucket, 'currentwindow', 'ci');
 
-        client.heartbeat(bucket, { app: 'firefox', title: 'GitHub' }, 2.0);
+        client.heartbeat(bucket, {app: 'firefox', title: 'GitHub'}, 2.0);
         await sleep(500);
 
         const events = await fetchEvents(bucket);
-        if (events.length < 1) throw new Error(`expected >=1 event, got ${events.length}`);
-        if (events[0].data.app !== 'firefox') {
+        if (events.length < 1)
+            throw new Error(`expected >=1 event, got ${events.length}`);
+        if (events[0].data.app !== 'firefox')
             throw new Error(`expected app=firefox, got ${events[0].data.app}`);
-        }
+
 
         print('  ok   integration :: heartbeat round-trips through aw-server-rust');
         client.destroy();

@@ -1,0 +1,15 @@
+{
+  "name": "aw-gnome",
+  "private": true,
+  "type": "module",
+  "license": "GPL-2.0-or-later",
+  "scripts": {
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "eslint": "10.10.0",
+    "eslint-config-gnome": "git+https://gitlab.gnome.org/World/javascript/eslint-config-gnome.git#c479d059e8d9ea99c3b53c2ea43abf7fdb05eb51",
+    "globals": "17.12.0"
+  },
+  "packageManager": "pnpm@11.26.0"
+}

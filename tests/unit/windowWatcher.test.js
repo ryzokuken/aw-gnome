@@ -1,7 +1,7 @@
-import { assertEqual } from '../assert.js';
-import { resolveAppId } from '../../lib/windowWatcher.js';
+import {assertEqual} from '../assert.js';
+import {resolveAppId} from '../../lib/windowWatcher.js';
 
-const win = (overrides) => ({
+const win = overrides => ({
     get_sandboxed_app_id: () => null,
     get_gtk_application_id: () => null,
     get_wm_class: () => null,
@@ -27,7 +27,7 @@ export const tests = {
     },
 
     'falls back to wm_class': () => {
-        const w = win({ get_wm_class: () => 'Alacritty' });
+        const w = win({get_wm_class: () => 'Alacritty'});
         assertEqual(resolveAppId(w), 'Alacritty');
     },
 

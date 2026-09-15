@@ -3,3 +3,4 @@ schemas/gschemas.compiled
 .DS_Store
 *.swp
 .aider*
+node_modules/

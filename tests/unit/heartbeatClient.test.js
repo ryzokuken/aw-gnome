@@ -1,4 +1,4 @@
-import { assertEqual } from '../assert.js';
+import {assertEqual} from '../assert.js';
 import {
     formatTimestamp,
     buildHeartbeatUrl,
@@ -37,11 +37,11 @@ export const tests = {
     'buildHeartbeatBody wraps data in canonical event shape': () => {
         const d = new Date(Date.UTC(2026, 4, 19, 0, 0, 0, 0));
         assertEqual(
-            buildHeartbeatBody(d, { app: 'firefox', title: 'GitHub' }),
+            buildHeartbeatBody(d, {app: 'firefox', title: 'GitHub'}),
             {
                 timestamp: '2026-05-19T00:00:00.000+00:00',
                 duration: 0,
-                data: { app: 'firefox', title: 'GitHub' },
+                data: {app: 'firefox', title: 'GitHub'},
             }
         );
     },
@@ -49,7 +49,7 @@ export const tests = {
     'buildBucketBody includes client, type, hostname': () => {
         assertEqual(
             buildBucketBody('aw-gnome', 'currentwindow', 'wkstn'),
-            { client: 'aw-gnome', type: 'currentwindow', hostname: 'wkstn' }
+            {client: 'aw-gnome', type: 'currentwindow', hostname: 'wkstn'}
         );
     },
 };
