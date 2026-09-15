@@ -36,7 +36,7 @@ make install            # deploy to ~/.local/share/gnome-shell/extensions
 For faster iteration than logging out, run a nested shell:
 
 ```bash
-dbus-run-session -- gnome-shell --nested --wayland
+dbus-run-session -- gnome-shell --devkit --wayland
 ```
 
 See [`docs/SMOKE.md`](docs/SMOKE.md) for the manual release checklist.

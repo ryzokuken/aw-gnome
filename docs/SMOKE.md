@@ -7,7 +7,7 @@ Run before tagging any release. Uses a nested shell so it doesn't disturb your l
 ```bash
 make install
 aw-server-rust &
-dbus-run-session -- gnome-shell --nested --wayland
+dbus-run-session -- gnome-shell --devkit --wayland
 ```
 
 In the nested shell:
