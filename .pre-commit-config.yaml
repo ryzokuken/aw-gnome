@@ -1,0 +1,30 @@
+repos:
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint
+        entry: pnpm exec eslint
+        language: system
+        types: [javascript]
+      - id: unit-tests
+        name: unit tests
+        entry: make test
+        language: system
+        files: \.js$
+        pass_filenames: false
+      - id: gschema
+        name: validate GSettings schema
+        entry: glib-compile-schemas --strict --dry-run schemas
+        language: system
+        files: ^schemas/.*\.xml$
+        pass_filenames: false
+      - id: actionlint
+        name: actionlint
+        entry: actionlint
+        language: system
+        files: ^\.github/workflows/
+      - id: zizmor
+        name: zizmor
+        entry: zizmor
+        language: system
+        files: ^\.github/
