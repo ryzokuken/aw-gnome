@@ -17,19 +17,16 @@ let failed = 0;
 for (const file of TEST_FILES) {
     let mod;
     try {
+        // eslint-disable-next-line no-await-in-loop -- files run in order for readable output
         mod = await import(file);
     } catch (e) {
-        const msg = e.message ?? '';
-        if (msg.includes('Module not found') || msg.includes('Unable to load file')) {
-            print(`SKIP ${file} (not yet implemented)`);
-            continue;
-        }
-        print(`FAIL ${file} (import error: ${msg})`);
+        print(`FAIL ${file} (import error: ${e.message})`);
         failed++;
         continue;
     }
     if (!mod.tests) {
-        print(`SKIP ${file} (no tests exported)`);
+        print(`FAIL ${file} (no \`tests\` export)`);
+        failed++;
         continue;
     }
     for (const [name, fn] of Object.entries(mod.tests)) {
@@ -46,4 +43,5 @@ for (const file of TEST_FILES) {
 }
 
 print(`\n${passed} passed, ${failed} failed`);
-if (failed > 0 && !GLib.getenv('FORCE_OK')) System.exit(1);
+if (failed > 0 && !GLib.getenv('FORCE_OK'))
+    System.exit(1);
