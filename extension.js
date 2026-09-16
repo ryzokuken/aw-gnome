@@ -4,11 +4,10 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 import {HeartbeatClient} from './lib/heartbeatClient.js';
 import {WindowWatcher, WINDOW_PULSETIME} from './lib/windowWatcher.js';
-import {AfkWatcher} from './lib/afkWatcher.js';
+import {AfkWatcher, AFK_PULSETIME} from './lib/afkWatcher.js';
 import {Indicator} from './lib/indicator.js';
 
 const SERVER_URL = 'http://localhost:5600';
-const AFK_PULSETIME = 6.0;
 
 export default class AwGnomeExtension extends Extension {
     enable() {
@@ -38,14 +37,10 @@ export default class AwGnomeExtension extends Extension {
         this._windowWatcher.enable();
 
         this._afkWatcher = new AfkWatcher({
-            onStateChange: state => {
+            onHeartbeat: heartbeat => {
                 if (this._settings.get_boolean('paused'))
                     return;
-                this._client.heartbeat(
-                    afkBucket,
-                    {timestamp: new Date(), duration: 0, data: {status: state}},
-                    AFK_PULSETIME
-                );
+                this._client.heartbeat(afkBucket, heartbeat, AFK_PULSETIME);
             },
         });
         this._afkWatcher.enable();
