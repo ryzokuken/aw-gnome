@@ -24,14 +24,10 @@ export default class AwGnomeExtension extends Extension {
             .catch(e => console.error(`aw-gnome: createBucket(afk) failed: ${e.message}`));
 
         this._windowWatcher = new WindowWatcher({
-            onEvent: event => {
+            onHeartbeat: heartbeat => {
                 if (this._settings.get_boolean('paused'))
                     return;
-                this._client.heartbeat(
-                    windowBucket,
-                    {timestamp: new Date(), duration: 0, data: event},
-                    WINDOW_PULSETIME
-                );
+                this._client.heartbeat(windowBucket, heartbeat, WINDOW_PULSETIME);
             },
         });
         this._windowWatcher.enable();
