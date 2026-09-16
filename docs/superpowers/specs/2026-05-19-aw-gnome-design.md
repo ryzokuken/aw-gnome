@@ -37,7 +37,7 @@ The project optimizes for execution speed and iteration quality over feature bre
 │  │    focus signals) ├──► HeartbeatClient ──HTTP──►──┐   │ │
 │  │                   │   (Soup.Session)              │   │ │
 │  │   AfkWatcher ─────┘                               │   │ │
-│  │   (Mutter.IdleMonitor D-Bus)                      │   │ │
+│  │   (core idle monitor, polled)                     │   │ │
 │  │                                                   │   │ │
 │  │   Indicator (PanelMenu.Button)                    │   │ │
 │  │     ├─ status dot                                 │   │ │
@@ -59,7 +59,7 @@ Everything runs inside the `gnome-shell` process. No subprocesses, no IPC with o
 
 ### `WindowWatcher`
 
-Subscribes to `global.display::focus-window` and `notify::title` on the currently-focused `Meta.Window`. On either signal, builds an event and forwards it to `HeartbeatClient`.
+Subscribes to `global.display::notify::focus-window` and `notify::title` on the currently-focused `Meta.Window`. On either signal, builds an event and forwards it to `HeartbeatClient`, then repeats that event every 5 seconds until the next change.
 
 App-id resolution priority (first non-empty wins):
 1. `meta_window.get_sandboxed_app_id()` (Flatpak apps)
@@ -69,22 +69,25 @@ App-id resolution priority (first non-empty wins):
 
 - **Bucket:** `aw-watcher-window_<hostname>`
 - **Event type:** `currentwindow`
-- **Pulsetime:** `2.0` seconds
-- **Event shape:** `{ timestamp, data: { app, title } }`
+- **Pulsetime:** `7.5` seconds — `max(interval × 1.5, interval + 1)` for the 5s repeat, as upstream `aw-watcher-window` computes it, so timer drift doesn't split events
+- **Event shape:** `{ timestamp, duration, data: { app, title } }`
 
-No polling. All transitions are signal-driven.
+When the focused window or its title changes, the watcher first sends the *previous* window's event stamped now, extending it to the moment of change, then opens the new event 1ms later. Without that, each event would end at its last repeat and lose up to 5 seconds per change.
 
 ### `AfkWatcher`
 
-Proxies `org.gnome.Mutter.IdleMonitor` on the session bus. On `enable()`:
+Every 5 seconds, reads idle time from `global.backend.get_core_idle_monitor().get_idletime()` and derives the AFK state against the 180s threshold. This mirrors upstream `aw-watcher-afk`:
 
-- Calls `AddIdleWatch(180000)` — fires once after 180s of no input.
-- When idle fires: send heartbeat `{ status: "afk" }`, then call `AddUserActiveWatch()`.
-- When user-active fires: send heartbeat `{ status: "not-afk" }`, then re-arm `AddIdleWatch`.
+- Heartbeats are stamped at the last input (`now - idle time`), not at the poll.
+- On becoming AFK: close `not-afk` at the last input, then open `afk` 1ms later with `duration` = idle time, so the whole idle period counts as AFK.
+- While AFK: repeat `afk` at the last input + 1ms with a growing `duration`.
+- On returning: close `afk` at the last input, then open `not-afk` 1ms later.
+
+Idle time ignores idle inhibitors (Caffeine, media playback); Mutter's D-Bus idle watches do not, which is why they aren't used. See [ADR 0001](../../adr/0001-afk-ignores-idle-inhibitors.md).
 
 - **Bucket:** `aw-watcher-afk_<hostname>`
 - **Event type:** `afkstatus`
-- **Pulsetime:** `185` seconds
+- **Pulsetime:** `185` seconds — threshold + poll interval, because heartbeats can be stamped up to the threshold in the past
 - **Threshold:** `180` seconds (upstream default)
 
 ### `HeartbeatClient`
@@ -92,10 +95,10 @@ Proxies `org.gnome.Mutter.IdleMonitor` on the session bus. On `enable()`:
 Thin wrapper around `Soup.Session` (libsoup3). The single seam through which all aw-server traffic flows — keeping it small and well-defined is what makes v0.2 (server lifecycle) and future buffering work cheap to add.
 
 Methods:
-- `createBucket(bucketId, eventType)` — `POST /api/0/buckets/{id}` with one retry on transient failure.
-- `heartbeat(bucketId, event, pulsetime)` — `POST /api/0/buckets/{id}/heartbeat?pulsetime=N`. On error: `console.error()` and drop. No retry, no buffer.
+- `createBucket(bucketId, eventType, hostname)` — `POST /api/0/buckets/{id}`. Resolves on 2xx, and on 304, which aw-server returns when the bucket already exists.
+- `heartbeat(bucketId, event, pulsetime)` — `POST /api/0/buckets/{id}/heartbeat?pulsetime=N` with `event = { timestamp, duration, data }`. Heartbeats are sent one at a time in call order: aw-server only merges a heartbeat into the latest event, so a close-then-open pair arriving reversed would split the timeline. On error: `console.error()` and drop. No retry, no buffer.
 
-Constructor takes an injectable session object (defaults to `new Soup.Session()`) to keep unit tests trivial.
+Request building and status handling are pure exported functions; the class itself is exercised by the integration test.
 
 ### `Indicator`
 
@@ -111,38 +114,38 @@ Pause state lives in GSettings (`org.gnome.shell.extensions.aw-gnome.paused`) so
 
 ### `extension.js`
 
-`Extension` subclass. `enable()` constructs the four components and wires the watchers' event callbacks to `heartbeatClient.heartbeat(...)`. `disable()` tears everything down: disconnects every signal handler (tracked in an array), destroys the indicator, releases the D-Bus proxy.
+`Extension` subclass. `enable()` constructs the four components and wires the watchers' heartbeat callbacks to `heartbeatClient.heartbeat(...)`. `disable()` tears everything down: each watcher disconnects its signal handlers and removes its timer, the indicator is destroyed, and the HTTP session is aborted.
 
-**Invariant:** after `disable()`, no signal handlers, no timers, and no D-Bus proxies remain alive. Verified manually by reload-the-extension smoke testing.
+**Invariant:** after `disable()`, no signal handlers and no timers remain alive. Verified manually by reload-the-extension smoke testing.
 
 ## Data flow
 
 **Window event:**
 ```
-focus-window or notify::title fires
+notify::focus-window or notify::title fires (or the 5s repeat)
+  ├─ resolve app id, read title
+  ├─ if changed: heartbeat { previous window, now }, then { new window, now + 1ms }
+  │  else:      heartbeat { same window, now }
   ├─ if paused (GSettings) → drop
-  ├─ resolve app id
-  ├─ build Event { timestamp: now(UTC), data: { app, title } }
-  └─► HeartbeatClient.heartbeat(window_bucket, event, 2.0)
+  └─► HeartbeatClient.heartbeat(window_bucket, event, 7.5)
 ```
 
 **AFK event:**
 ```
-Mutter IdleWatch fires (180s no input)
-  └─► AfkWatcher.setAfk(true)
-      └─► heartbeat(afk_bucket, { status: "afk" }, 185)
-
-Mutter UserActiveWatch fires
-  └─► AfkWatcher.setAfk(false)
-      └─► heartbeat(afk_bucket, { status: "not-afk" }, 185)
-      └─► re-arm IdleWatch
+every 5s: read idle time
+  ├─ not-afk, idle ≥ 180s → heartbeat not-afk @ last input, afk @ last input + 1ms (duration = idle)
+  ├─ afk, idle < 180s     → heartbeat afk @ last input, not-afk @ last input + 1ms
+  ├─ afk                  → heartbeat afk @ last input + 1ms (duration = idle)
+  ├─ not-afk              → heartbeat not-afk @ last input
+  ├─ if paused (GSettings) → drop
+  └─► HeartbeatClient.heartbeat(afk_bucket, event, 185)
 ```
 
 **Pause:**
 ```
 Indicator toggle → GSettings.set_boolean("paused", true)
-  └─► both watchers observe via settings.connect("changed::paused", ...)
-       and gate outbound heartbeats until unpause
+  └─► extension.js reads the setting on every heartbeat
+       and drops it while paused
 ```
 
 Pause does not tear down subscriptions; it only gates the outbound call. Resume is instantaneous.
@@ -186,11 +189,11 @@ Designed for the iterative workflow: every change in any milestone should be ver
 
 ### Layer 1 — Unit tests (`tests/unit/`)
 
-Pure-logic modules tested with `gjs` + [jasmine-gjs](https://github.com/ptomato/jasmine-gjs). Run via `make test`. Target: <1s wall time. Runs in CI.
+Pure-logic helpers tested with plain `gjs` and a minimal runner (`tests/run.js`). Run via `make test`. Target: <1s wall time. Runs in CI.
 
-- `heartbeatClient.test.js` — URL construction, request payload shape, error path. `Soup.Session` injected as a mock.
-- `windowWatcher.test.js` — app-id resolution priority. `Meta.Window` passed as plain JS stubs.
-- `afkWatcher.test.js` — state-machine transitions on idle/active D-Bus events.
+- `heartbeatClient.test.js` — URL construction, request payload shape, bucket-creation status handling, pulsetime formula.
+- `windowWatcher.test.js` — app-id resolution priority (`Meta.Window` passed as plain JS stubs); heartbeats on focus and title changes.
+- `afkWatcher.test.js` — AFK transitions and backdated heartbeats for a given idle time, including the threshold boundary.
 
 Design rule: any module that needs `gnome-shell`-only globals to test is too coupled and should be refactored. This is the forcing function that keeps boundaries clean.
 
@@ -200,7 +203,8 @@ One end-to-end test, run on demand (`make test-integration`), not in CI:
 
 - Spawns `aw-server-rust --testing` (isolated dataset, port 5666).
 - Waits for `/api/0/info` to respond.
-- Drives `HeartbeatClient` against the real server: create bucket, send heartbeats, fetch events back, assert structure.
+- Drives `HeartbeatClient` against the real server: create a bucket twice (the second answers 304), send heartbeats, fetch events back, assert structure.
+- Sends back-to-back close-then-open heartbeat pairs and asserts they merge into the expected events, which fails if requests arrive out of order.
 
 Catches version-skew between our HTTP usage and `aw-server`'s actual API.
 
@@ -208,10 +212,11 @@ Catches version-skew between our HTTP usage and `aw-server`'s actual API.
 
 One-page checklist. Run before tagging any release.
 
-- `dbus-run-session -- gnome-shell --nested --wayland` with the extension installed.
+- `dbus-run-session -- gnome-shell --devkit --wayland` (GNOME 49+; `--nested` before) with the extension installed.
 - Indicator appears, status dot recording.
 - Focus three different apps; events visible in `localhost:5666` dashboard.
-- Idle 3+ min; AFK event appears.
+- Idle 3+ min, including with an idle inhibitor held; AFK event appears.
+- Suspend and resume; AFK bucket shows no bogus events.
 - Pause → focus changes produce no events → resume → events resume.
 - Disable extension → clean log (no GJS warnings, no orphaned signals via `dbus-monitor`).
 - Re-enable → no double subscriptions.
@@ -264,7 +269,8 @@ aw-gnome/
 | Extension UUID | `aw-gnome@ryzokuken.dev` |
 | Hostname source | `GLib.get_host_name()` |
 | AFK threshold / pulsetime | 180s / 185s (upstream defaults) |
-| Window pulsetime | 2.0s (upstream default) |
+| AFK detection | Poll idle time every 5s; ignores idle inhibitors ([ADR 0001](../../adr/0001-afk-ignores-idle-inhibitors.md)) |
+| Window pulsetime | 7.5s (upstream formula for a 5s repeat) |
 | Build | Makefile + `gnome-extensions pack` + `glib-compile-schemas` |
 | Distribution | `make install` for v0.1/v0.2; e.go submission deferred |
 | CI | GitHub Actions: eslint + unit tests on push |
