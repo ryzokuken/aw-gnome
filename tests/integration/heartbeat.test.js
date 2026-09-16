@@ -69,8 +69,10 @@ async function main() {
         const client = new HeartbeatClient(TEST_URL);
         const bucket = 'aw-watcher-test_ci';
         await client.createBucket(bucket, 'currentwindow', 'ci');
+        await client.createBucket(bucket, 'currentwindow', 'ci');
 
-        client.heartbeat(bucket, {app: 'firefox', title: 'GitHub'}, 2.0);
+        const data = {app: 'firefox', title: 'GitHub'};
+        client.heartbeat(bucket, {timestamp: new Date(), duration: 0, data}, 2.0);
         await sleep(500);
 
         const events = await fetchEvents(bucket);
@@ -80,6 +82,7 @@ async function main() {
             throw new Error(`expected app=firefox, got ${events[0].data.app}`);
 
 
+        print('  ok   integration :: re-creating an existing bucket succeeds');
         print('  ok   integration :: heartbeat round-trips through aw-server-rust');
         client.destroy();
         return 0;

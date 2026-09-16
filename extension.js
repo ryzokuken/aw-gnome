@@ -28,7 +28,11 @@ export default class AwGnomeExtension extends Extension {
             onEvent: event => {
                 if (this._settings.get_boolean('paused'))
                     return;
-                this._client.heartbeat(windowBucket, event, WINDOW_PULSETIME);
+                this._client.heartbeat(
+                    windowBucket,
+                    {timestamp: new Date(), duration: 0, data: event},
+                    WINDOW_PULSETIME
+                );
             },
         });
         this._windowWatcher.enable();
@@ -37,7 +41,11 @@ export default class AwGnomeExtension extends Extension {
             onStateChange: state => {
                 if (this._settings.get_boolean('paused'))
                     return;
-                this._client.heartbeat(afkBucket, {status: state}, AFK_PULSETIME);
+                this._client.heartbeat(
+                    afkBucket,
+                    {timestamp: new Date(), duration: 0, data: {status: state}},
+                    AFK_PULSETIME
+                );
             },
         });
         this._afkWatcher.enable();

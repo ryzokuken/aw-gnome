@@ -39,12 +39,24 @@ export const tests = {
     'buildHeartbeatBody wraps data in canonical event shape': () => {
         const d = new Date(Date.UTC(2026, 4, 19, 0, 0, 0, 0));
         assertEqual(
-            buildHeartbeatBody(d, {app: 'firefox', title: 'GitHub'}),
+            buildHeartbeatBody({
+                timestamp: d,
+                duration: 0,
+                data: {app: 'firefox', title: 'GitHub'},
+            }),
             {
                 timestamp: '2026-05-19T00:00:00.000+00:00',
                 duration: 0,
                 data: {app: 'firefox', title: 'GitHub'},
             }
+        );
+    },
+
+    'buildHeartbeatBody keeps a backdated event duration': () => {
+        const d = new Date(Date.UTC(2026, 4, 19, 0, 0, 0, 0));
+        assertEqual(
+            buildHeartbeatBody({timestamp: d, duration: 180, data: {status: 'afk'}}).duration,
+            180
         );
     },
 
