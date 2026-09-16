@@ -5,6 +5,7 @@ import {
     buildBucketUrl,
     buildHeartbeatBody,
     buildBucketBody,
+    isBucketCreated,
 } from '../../lib/heartbeatClient.js';
 
 export const tests = {
@@ -51,5 +52,17 @@ export const tests = {
             buildBucketBody('aw-gnome', 'currentwindow', 'wkstn'),
             {client: 'aw-gnome', type: 'currentwindow', hostname: 'wkstn'}
         );
+    },
+
+    'isBucketCreated accepts a newly created bucket': () => {
+        assertEqual(isBucketCreated(200), true);
+    },
+
+    'isBucketCreated accepts a bucket that already exists (304)': () => {
+        assertEqual(isBucketCreated(304), true);
+    },
+
+    'isBucketCreated rejects client and server errors': () => {
+        assertEqual([400, 500].map(isBucketCreated), [false, false]);
     },
 };
