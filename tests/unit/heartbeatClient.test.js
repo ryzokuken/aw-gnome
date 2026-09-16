@@ -6,6 +6,7 @@ import {
     buildHeartbeatBody,
     buildBucketBody,
     isBucketCreated,
+    chainPulsetime,
 } from '../../lib/heartbeatClient.js';
 
 export const tests = {
@@ -64,5 +65,13 @@ export const tests = {
 
     'isBucketCreated rejects client and server errors': () => {
         assertEqual([400, 500].map(isBucketCreated), [false, false]);
+    },
+
+    'chainPulsetime gives a 5s interval 2.5s of slack for timer jitter': () => {
+        assertEqual(chainPulsetime(5), 7.5);
+    },
+
+    'chainPulsetime keeps at least 1s of slack for short intervals': () => {
+        assertEqual(chainPulsetime(1), 2);
     },
 };
