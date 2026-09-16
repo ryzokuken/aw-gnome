@@ -52,6 +52,29 @@ async function fetchEvents(bucketId) {
     return JSON.parse(new TextDecoder().decode(bytes.get_data()));
 }
 
+async function checkTransitionsStayOrdered(client) {
+    const bucket = `aw-watcher-test-order_${Date.now()}`;
+    await client.createBucket(bucket, 'afkstatus', 'ci');
+
+    const states = Array.from({length: 20}, (_, i) => i % 2 ? 'afk' : 'not-afk');
+    const start = Date.now() - 3600 * 1000;
+    const at = ms => new Date(start + ms);
+    const beat = (status, timestamp) => client.heartbeat(
+        bucket, {timestamp, duration: 0, data: {status}}, 185);
+
+    beat(states[0], at(0));
+    for (let i = 1; i < states.length; i++) {
+        beat(states[i - 1], at(i * 10000));
+        beat(states[i], at(i * 10000 + 1));
+    }
+    await sleep(1000);
+
+    const durations = (await fetchEvents(bucket)).reverse().map(e => Math.round(e.duration));
+    const expected = [...Array(states.length - 1).fill(10), 0];
+    if (JSON.stringify(durations) !== JSON.stringify(expected))
+        throw new Error(`expected durations ${expected}, got ${durations}`);
+}
+
 async function main() {
     if (!which('aw-server-rust')) {
         print('SKIP: aw-server-rust not in PATH');
@@ -83,6 +106,9 @@ async function main() {
 
 
         print('  ok   integration :: re-creating an existing bucket succeeds');
+
+        await checkTransitionsStayOrdered(client);
+        print('  ok   integration :: close-then-open heartbeats arrive in order');
         print('  ok   integration :: heartbeat round-trips through aw-server-rust');
         client.destroy();
         return 0;
